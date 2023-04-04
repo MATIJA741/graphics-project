@@ -56,8 +56,19 @@ struct ProgramState {
     bool ImGuiEnabled = false;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
-    glm::vec3 backpackPosition = glm::vec3(0.0f);
-    float backpackScale = 1.0f;
+    glm::vec3 shipPosition = glm::vec3(-4.0f, 2.2f, 6.6f);
+    glm::vec3 corgiPosition = glm::vec3(3.0f, -3.0f, 9.0f);
+    glm::vec3 treePosition = glm::vec3(-7.0f, 0.0f, 1.0f);
+    glm::vec3 cartPosition = glm::vec3(-5.0f, 0.0f, 8.0f);
+
+    float shipScale = 0.05f;
+    float corgiScale = 0.1f;
+    float treeScale = 0.25f;
+    float cartScale = 0.035f;
+
+    glm::vec3 corgiRotation = glm::vec3(-3.5f, -7.6f, -8.0f);
+    float corgiAngle = 158.450f;
+
     PointLight pointLight;
     ProgramState()
             : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
@@ -100,6 +111,53 @@ void ProgramState::LoadFromFile(std::string filename) {
 ProgramState *programState;
 
 void DrawImGui(ProgramState *programState);
+
+unsigned int loadTexture(char const * path, bool gammaCorrection)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum internalFormat;
+        GLenum dataFormat;
+        if (nrComponents == 1)
+        {
+            internalFormat = dataFormat = GL_RED;
+        }
+        else if (nrComponents == 3)
+        {
+            internalFormat = gammaCorrection ? GL_SRGB : GL_RGB;
+            dataFormat = GL_RGB;
+        }
+        else if (nrComponents == 4)
+        {
+            internalFormat = gammaCorrection ? GL_SRGB_ALPHA : GL_RGBA;
+            dataFormat = GL_RGBA;
+        }
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
 
 int main() {
     // glfw: initialize and configure
@@ -165,8 +223,17 @@ int main() {
 
     // load models
     // -----------
-    Model ourModel("resources/objects/ship/StMaria.obj");
-    ourModel.SetShaderTextureNamePrefix("material.");
+    Model shipModel("resources/objects/ship/StMaria.obj");
+    shipModel.SetShaderTextureNamePrefix("material.");
+
+    Model corgiModel("resources/objects/corgi/corgi.obj");
+    corgiModel.SetShaderTextureNamePrefix("material.");
+
+    Model treeModel("resources/objects/tree/Tree.obj");
+    treeModel.SetShaderTextureNamePrefix("material.");
+
+    Model cartModel("resources/objects/cart/Cart.obj");
+    cartModel.SetShaderTextureNamePrefix("material.");
 
     PointLight& pointLight = programState->pointLight;
     pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
@@ -221,18 +288,43 @@ int main() {
         ourShader.setMat4("projection", projection);
         ourShader.setMat4("view", view);
 
-        // render the loaded model
+        // render ship
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model,
-                               programState->backpackPosition); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(programState->backpackScale));    // it's a bit too big for our scene, so scale it down
+                               programState->shipPosition); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(programState->shipScale));    // it's a bit too big for our scene, so scale it down
         ourShader.setMat4("model", model);
-        ourModel.Draw(ourShader);
+        shipModel.Draw(ourShader);
+
+        // render corgi
+        model = glm::mat4(1.0f);
+        model = glm::translate(model,
+                               programState->corgiPosition); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(programState->corgiScale));
+        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+        ourShader.setMat4("model", model);
+        corgiModel.Draw(ourShader);
+
+        // render tree
+        model = glm::mat4(1.0f);
+        model = glm::translate(model,
+                               programState->treePosition); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(programState->treeScale));
+//        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+        ourShader.setMat4("model", model);
+        treeModel.Draw(ourShader);
+
+        // render cart
+        model = glm::mat4(1.0f);
+        model = glm::translate(model,
+                               programState->cartPosition); // translate it down so it's at the center of the scene
+        model = glm::scale(model, glm::vec3(programState->cartScale));
+//        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+        ourShader.setMat4("model", model);
+        cartModel.Draw(ourShader);
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
-
-
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -326,8 +418,19 @@ void DrawImGui(ProgramState *programState) {
         ImGui::Text("Hello text");
         ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
-        ImGui::DragFloat3("Backpack position", (float*)&programState->backpackPosition);
-        ImGui::DragFloat("Backpack scale", &programState->backpackScale, 0.05, 0.1, 4.0);
+        ImGui::DragFloat3("Ship position", (float*)&programState->shipPosition);
+        ImGui::DragFloat("Ship scale", &programState->shipScale, 0.05, 0.1, 4.0);
+
+        ImGui::DragFloat3("Corgi position", (float*)&programState->corgiPosition);
+        ImGui::DragFloat("Corgi scale", &programState->corgiScale, 0.05, 0.1, 4.0);
+        ImGui::DragFloat3("Corgi rotation", (float *) &programState->corgiRotation, 0.1);
+        ImGui::DragFloat("Corgi angle", &programState->corgiAngle, 0.05, -180.0, 180.0);
+
+        ImGui::DragFloat3("Tree position", (float*)&programState->treePosition);
+        ImGui::DragFloat("Tree scale", &programState->treeScale, 0.05, 0.1, 4.0);
+
+        ImGui::DragFloat3("Cart position", (float*)&programState->cartPosition);
+        ImGui::DragFloat("Cart scale", &programState->cartScale, 0.05, -0.5, 4.0);
 
         ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
         ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
