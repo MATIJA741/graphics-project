@@ -56,8 +56,8 @@ struct ProgramState {
     bool ImGuiEnabled = false;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
-    glm::vec3 shipPosition = glm::vec3(-4.0f, 2.2f, 6.6f);
-    glm::vec3 corgiPosition = glm::vec3(3.0f, -3.0f, 9.0f);
+    glm::vec3 shipPosition = glm::vec3(-4.1f, 2.141f, 6.6f);
+    glm::vec3 corgiPosition = glm::vec3(3.0f, 0.0f, 9.0f);
     glm::vec3 treePosition = glm::vec3(-7.0f, 0.0f, 1.0f);
     glm::vec3 cartPosition = glm::vec3(-5.0f, 0.0f, 8.0f);
 
@@ -66,8 +66,10 @@ struct ProgramState {
     float treeScale = 0.25f;
     float cartScale = 0.035f;
 
-    glm::vec3 corgiRotation = glm::vec3(-3.5f, -7.6f, -8.0f);
-    float corgiAngle = 158.450f;
+    glm::vec3 corgiRotation = glm::vec3(-2.6f, -7.8f, -7.7f);
+    float corgiAngle = 155.450f;
+    glm::vec3 shipRotation = glm::vec3(5.7f, -173.5f, -4.8f);
+    float shipAngle =90.5f;
 
     PointLight pointLight;
     ProgramState()
@@ -221,6 +223,10 @@ int main() {
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
 
+    unsigned int grassTexture = loadTexture(FileSystem::getPath("resources/textures/1601.m10.i311.n029.S.c10.164511620 Seamless green grass vector pattern.jpg").c_str(), true);
+    ourShader.use();
+    ourShader.setInt("texture1", 0);
+
     // load models
     // -----------
     Model shipModel("resources/objects/ship/StMaria.obj");
@@ -236,14 +242,39 @@ int main() {
     cartModel.SetShaderTextureNamePrefix("material.");
 
     PointLight& pointLight = programState->pointLight;
-    pointLight.position = glm::vec3(4.0f, 4.0, 0.0);
-    pointLight.ambient = glm::vec3(1, 1, 1);
+    pointLight.position = glm::vec3(4.0f, 150.0, 0.0);
+    pointLight.ambient = glm::vec3(3, 3, 3);
     pointLight.diffuse = glm::vec3(0.6, 0.6, 0.6);
     pointLight.specular = glm::vec3(1.0, 1.0, 1.0);
 
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
     pointLight.quadratic = 0.032f;
+
+    float planeVertices[] = {
+            // positions            // normals         // texcoords
+            1000.0f, -0.5f,  1000.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+            -1000.0f, -0.5f,  1000.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
+            -1000.0f, -0.5f, -1000.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+
+            1000.0f, -0.5f,  1000.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
+            -1000.0f, -0.5f, -1000.0f,  0.0f, 1.0f, 0.0f,   0.0f, 10.0f,
+            1000.0f, -0.5f, -1000.0f,  0.0f, 1.0f, 0.0f,  10.0f, 10.0f
+    };
+    // plane VAO
+    unsigned int planeVAO, planeVBO;
+    glGenVertexArrays(1, &planeVAO);
+    glGenBuffers(1, &planeVBO);
+    glBindVertexArray(planeVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, planeVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glBindVertexArray(0);
 
 
 
@@ -293,6 +324,7 @@ int main() {
         model = glm::translate(model,
                                programState->shipPosition); // translate it down so it's at the center of the scene
         model = glm::scale(model, glm::vec3(programState->shipScale));    // it's a bit too big for our scene, so scale it down
+        model = glm::rotate(model, glm::radians(programState->shipAngle), programState->shipRotation);
         ourShader.setMat4("model", model);
         shipModel.Draw(ourShader);
 
@@ -322,6 +354,11 @@ int main() {
 //        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
         ourShader.setMat4("model", model);
         cartModel.Draw(ourShader);
+
+        glBindVertexArray(planeVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, grassTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
@@ -419,7 +456,9 @@ void DrawImGui(ProgramState *programState) {
         ImGui::SliderFloat("Float slider", &f, 0.0, 1.0);
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
         ImGui::DragFloat3("Ship position", (float*)&programState->shipPosition);
-        ImGui::DragFloat("Ship scale", &programState->shipScale, 0.05, 0.1, 4.0);
+        ImGui::DragFloat("Ship scale", &programState->shipScale, 0.05, 0.1, 4.0);\
+        ImGui::DragFloat3("Ship rotation", (float *) &programState->shipRotation, 0.1);
+        ImGui::DragFloat("Ship angle", &programState->shipAngle, 0.05, -360.0, 360.0);
 
         ImGui::DragFloat3("Corgi position", (float*)&programState->corgiPosition);
         ImGui::DragFloat("Corgi scale", &programState->corgiScale, 0.05, 0.1, 4.0);
