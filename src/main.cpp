@@ -29,6 +29,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
+bool blinnBool = true;
 
 // camera
 
@@ -223,6 +224,7 @@ int main() {
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
+
     // build and compile shaders
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
@@ -253,7 +255,7 @@ int main() {
     pointLight.position = glm::vec3(4.0f, 15.0, 2.0);
     pointLight.ambient = glm::vec3(1.1, 1.1, 1.1);
     pointLight.diffuse = glm::vec3(0.2, 0.2, 0.2);
-    pointLight.specular = glm::vec3(0.01, 0.01, 0.01);
+    pointLight.specular = glm::vec3(0.1, 0.1, 0.1);
 
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
@@ -356,6 +358,7 @@ int main() {
         ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
         ourShader.setVec3("viewPosition", programState->camera.Position);
         ourShader.setFloat("material.shininess", 32.0f);
+        ourShader.setInt("blinn", blinnBool);
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
@@ -400,10 +403,14 @@ int main() {
         ourShader.setMat4("model", model);
         cartModel.Draw(ourShader);
 
+        // render grass with face-culling
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_FRONT);
         glBindVertexArray(planeVAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, grassTexture);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDisable(GL_CULL_FACE);
 
         // render bush
         transparentShader.use();
@@ -577,5 +584,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     }
     if (key == GLFW_KEY_M && action == GLFW_PRESS) {
         programState->CameraMouseMovementUpdateEnabled = !programState->CameraMouseMovementUpdateEnabled;
+    }
+
+    if (key == GLFW_KEY_B && action == GLFW_PRESS) {
+        blinnBool = !blinnBool;
     }
 }
