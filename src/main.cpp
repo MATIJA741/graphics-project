@@ -28,10 +28,15 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
 unsigned int loadCubemap(vector<std::string> faces);
 
+void renderQuad();
+
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 bool blinnBool = true;
+bool hdr = true;
+bool hdrKeyPressed = false;
+float exposure = 1.0f;
 
 // camera
 
@@ -231,6 +236,7 @@ int main() {
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
     Shader transparentShader("resources/shaders/3.1.blending.vs", "resources/shaders/3.1.blending.fs");
+    Shader hdrShader("resources/shaders/6.hdr.vs", "resources/shaders/6.hdr.fs");
 
     unsigned int grassTexture = loadTexture(FileSystem::getPath("resources/textures/1601.m10.i311.n029.S.c10.164511620 Seamless green grass vector pattern.jpg").c_str(), true);
     Shader skyboxShader("resources/shaders/6.1.skybox.vs", "resources/shaders/6.1.skybox.fs");
@@ -391,11 +397,38 @@ int main() {
     };
     unsigned int cubemapTexture = loadCubemap(faces);
 
+    // configure floating point framebuffer
+    // ------------------------------------
+    unsigned int hdrFBO;
+    glGenFramebuffers(1, &hdrFBO);
+    // create floating point color buffer
+    unsigned int colorBuffer;
+    glGenTextures(1, &colorBuffer);
+    glBindTexture(GL_TEXTURE_2D, colorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // create depth buffer (renderbuffer)
+    unsigned int rboDepth;
+    glGenRenderbuffers(1, &rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, SCR_WIDTH, SCR_HEIGHT);
+    // attach buffers
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
 
     transparentShader.use();
     transparentShader.setInt("texture1", 0);
+
+    hdrShader.use();
+    hdrShader.setInt("hdrBuffer", 0);
 
     // draw in wireframe
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -413,6 +446,7 @@ int main() {
         // -----
         processInput(window);
 
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
 
         // render
         // ------
@@ -420,112 +454,121 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // don't forget to enable shader before setting uniforms
-        ourShader.use();
-        pointLight.position = glm::vec3(4.0, 4.0f, 4.0);
-        ourShader.setVec3("pointLight.position", pointLight.position);
-        ourShader.setVec3("pointLight.ambient", pointLight.ambient);
-        ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
-        ourShader.setVec3("pointLight.specular", pointLight.specular);
-        ourShader.setFloat("pointLight.constant", pointLight.constant);
-        ourShader.setFloat("pointLight.linear", pointLight.linear);
-        ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
-        ourShader.setVec3("viewPosition", programState->camera.Position);
-        ourShader.setFloat("material.shininess", 32.0f);
-        ourShader.setInt("blinn", blinnBool);
+            ourShader.use();
+            pointLight.position = glm::vec3(4.0, 4.0f, 4.0);
+            ourShader.setVec3("pointLight.position", pointLight.position);
+            ourShader.setVec3("pointLight.ambient", pointLight.ambient);
+            ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
+            ourShader.setVec3("pointLight.specular", pointLight.specular);
+            ourShader.setFloat("pointLight.constant", pointLight.constant);
+            ourShader.setFloat("pointLight.linear", pointLight.linear);
+            ourShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+            ourShader.setVec3("viewPosition", programState->camera.Position);
+            ourShader.setFloat("material.shininess", 32.0f);
+            ourShader.setInt("blinn", blinnBool);
 
-        // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
-                                                (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-        glm::mat4 view = programState->camera.GetViewMatrix();
-        ourShader.setMat4("projection", projection);
-        ourShader.setMat4("view", view);
+            // view/projection transformations
+            glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
+                                                    (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+            glm::mat4 view = programState->camera.GetViewMatrix();
+            ourShader.setMat4("projection", projection);
+            ourShader.setMat4("view", view);
 
-        // render ship
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model,
-                               programState->shipPosition); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(programState->shipScale));    // it's a bit too big for our scene, so scale it down
-        model = glm::rotate(model, glm::radians(programState->shipAngle), programState->shipRotation);
-        ourShader.setMat4("model", model);
-        shipModel.Draw(ourShader);
+            // render ship
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model,
+                                   programState->shipPosition); // translate it down so it's at the center of the scene
+            model = glm::scale(model, glm::vec3(programState->shipScale));    // it's a bit too big for our scene, so scale it down
+            model = glm::rotate(model, glm::radians(programState->shipAngle), programState->shipRotation);
+            ourShader.setMat4("model", model);
+            shipModel.Draw(ourShader);
 
-        // render mastiff
-//        model = glm::mat4(1.0f);
-//        model = glm::translate(model,
-//                               programState->mastiffPosition); // translate it down so it's at the center of the scene
-//        model = glm::scale(model, glm::vec3(programState->mastiffScale));    // it's a bit too big for our scene, so scale it down
-//        model = glm::rotate(model, glm::radians(programState->mastiffAngle), programState->mastiffRotation);
-//        ourShader.setMat4("model", model);
-//        mastiffModel.Draw(ourShader);
+            // render mastiff
+    //        model = glm::mat4(1.0f);
+    //        model = glm::translate(model,
+    //                               programState->mastiffPosition); // translate it down so it's at the center of the scene
+    //        model = glm::scale(model, glm::vec3(programState->mastiffScale));    // it's a bit too big for our scene, so scale it down
+    //        model = glm::rotate(model, glm::radians(programState->mastiffAngle), programState->mastiffRotation);
+    //        ourShader.setMat4("model", model);
+//          mastiffModel.Draw(ourShader);
 
-        // render corgi
-        model = glm::mat4(1.0f);
-        model = glm::translate(model,
-                               programState->corgiPosition); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(programState->corgiScale));
-        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
-        ourShader.setMat4("model", model);
-        corgiModel.Draw(ourShader);
-
-        // render cart
-        model = glm::mat4(1.0f);
-        model = glm::translate(model,
-                               programState->cartPosition); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(programState->cartScale));
-//        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
-        ourShader.setMat4("model", model);
-        cartModel.Draw(ourShader);
-
-        // render grass with face-culling
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_FRONT);
-        glBindVertexArray(planeVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, grassTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        glDisable(GL_CULL_FACE);
-
-        // render bush
-        transparentShader.use();
-        transparentShader.setMat4("projection", projection);
-        transparentShader.setMat4("view", view);
-        glBindVertexArray(transparentVAO);
-        glBindTexture(GL_TEXTURE_2D, transparentTexture);
-        for (unsigned int i = 0; i < vegetation.size(); i++)
-        {
+            // render corgi
             model = glm::mat4(1.0f);
-            model = glm::translate(model, vegetation[i]);
-            transparentShader.setMat4("model", model);
+            model = glm::translate(model,
+                                   programState->corgiPosition); // translate it down so it's at the center of the scene
+            model = glm::scale(model, glm::vec3(programState->corgiScale));
+            model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+            ourShader.setMat4("model", model);
+            corgiModel.Draw(ourShader);
+
+            // render cart
+            model = glm::mat4(1.0f);
+            model = glm::translate(model,
+                                   programState->cartPosition); // translate it down so it's at the center of the scene
+            model = glm::scale(model, glm::vec3(programState->cartScale));
+    //        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+            ourShader.setMat4("model", model);
+            cartModel.Draw(ourShader);
+
+            // render grass with face-culling
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_FRONT);
+            glBindVertexArray(planeVAO);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, grassTexture);
             glDrawArrays(GL_TRIANGLES, 0, 6);
-        }
+            glDisable(GL_CULL_FACE);
 
-        // render tree
-        model = glm::mat4(1.0f);
-        model = glm::translate(model,
-                               programState->treePosition); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(programState->treeScale));
-//        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
-        ourShader.setMat4("model", model);
-        treeModel.Draw(transparentShader);
+            // render bush
+            transparentShader.use();
+            transparentShader.setMat4("projection", projection);
+            transparentShader.setMat4("view", view);
+            glBindVertexArray(transparentVAO);
+            glBindTexture(GL_TEXTURE_2D, transparentTexture);
+            for (unsigned int i = 0; i < vegetation.size(); i++)
+            {
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, vegetation[i]);
+                transparentShader.setMat4("model", model);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
 
-        // draw skybox as last
-        glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
-        skyboxShader.use();
-        view = glm::mat4(glm::mat3(view)); // remove translation from the view matrix
-        skyboxShader.setMat4("view", view);
-        skyboxShader.setMat4("projection", projection);
-        // skybox cube
-        glBindVertexArray(skyboxVAO);
+            // render tree
+            model = glm::mat4(1.0f);
+            model = glm::translate(model,
+                                   programState->treePosition); // translate it down so it's at the center of the scene
+            model = glm::scale(model, glm::vec3(programState->treeScale));
+    //        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+            ourShader.setMat4("model", model);
+            treeModel.Draw(transparentShader);
+
+            // draw skybox as last
+            glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+            skyboxShader.use();
+            view = glm::mat4(glm::mat3(view)); // remove translation from the view matrix
+            skyboxShader.setMat4("view", view);
+            skyboxShader.setMat4("projection", projection);
+            // skybox cube
+            glBindVertexArray(skyboxVAO);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+            glBindVertexArray(0);
+            glDepthFunc(GL_LESS); // set depth function back to default
+
+            if (programState->ImGuiEnabled)
+                DrawImGui(programState);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hdrShader.use();
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-        glBindVertexArray(0);
-        glDepthFunc(GL_LESS); // set depth function back to default
+        glBindTexture(GL_TEXTURE_2D, colorBuffer);
+        hdrShader.setInt("hdr", hdr);
+        hdrShader.setFloat("exposure", exposure);
+        renderQuad();
 
-
-
-        if (programState->ImGuiEnabled)
-            DrawImGui(programState);
+        std::cout << "hdr: " << (hdr ? "on" : "off") << "| exposure: " << exposure << std::endl;
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -542,6 +585,35 @@ int main() {
     // ------------------------------------------------------------------
     glfwTerminate();
     return 0;
+}
+
+unsigned int quadVAO = 0;
+unsigned int quadVBO;
+void renderQuad()
+{
+    if (quadVAO == 0)
+    {
+        float quadVertices[] = {
+                // positions        // texture Coords
+                -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+                -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+                1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+                1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
@@ -572,6 +644,28 @@ void processInput(GLFWwindow *window) {
         programState->camera.ProcessKeyboard(CAMERA_LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
         programState->camera.ProcessKeyboard(CAMERA_RIGHT, deltaTime);
+
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !hdrKeyPressed)
+    {
+        hdr = !hdr;
+        hdrKeyPressed = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE)
+    {
+        hdrKeyPressed = false;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+    {
+        if (exposure > 0.0f)
+            exposure -= 0.001f;
+        else
+            exposure = 0.0f;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+    {
+        exposure += 0.001f;
+    }
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
