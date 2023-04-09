@@ -14,4 +14,3 @@ newmtl Bullmastiff
 	Ke 0.0000 0.0000 0.0000
 	map_Ka Bullmastiff_diffuse.jpg
 	map_Kd Bullmastiff_diffuse.jpg
-	map_bump Map__2_Normal Bump.tga

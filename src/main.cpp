@@ -65,23 +65,23 @@ struct ProgramState {
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 shipPosition = glm::vec3(-4.1f, 2.141f, 6.6f);
-//    glm::vec3 mastiffPosition = glm::vec3(3.0f, 0.0f, 9.0f);
-    glm::vec3 corgiPosition = glm::vec3(3.0f, 0.0f, 9.0f);
+    glm::vec3 mastiffPosition = glm::vec3(3.0f, -0.029f, 9.0f);
+    glm::vec3 corgiPosition = glm::vec3(-4.1f, 1.909f, 7.8f);
     glm::vec3 treePosition = glm::vec3(-7.0f, 0.0f, 1.0f);
     glm::vec3 cartPosition = glm::vec3(-5.0f, 0.0f, 8.0f);
 
     float shipScale = 0.05f;
-//    float mastiffScale = 0.05f;
-    float corgiScale = 0.1f;
+    float mastiffScale = 0.042f;
+    float corgiScale = 0.02f;
     float treeScale = 0.25f;
     float cartScale = 0.035f;
 
-    glm::vec3 corgiRotation = glm::vec3(-2.6f, -7.8f, -7.7f);
-    float corgiAngle = 155.450f;
+    glm::vec3 corgiRotation = glm::vec3(-16.4f, -1.0f, -0.4f);
+    float corgiAngle = 89.6f;
     glm::vec3 shipRotation = glm::vec3(5.7f, -173.5f, -4.8f);
     float shipAngle = 90.5f;
-//    glm::vec3 mastiffRotation = glm::vec3(1.0f, 1.0f, 1.0f);
-//    float mastiffAngle = 1.0f;
+    glm::vec3 mastiffRotation = glm::vec3(-19.1f, 13.2f, 12.5f);
+    float mastiffAngle = 108.65f;
 
     PointLight pointLight;
     ProgramState()
@@ -209,7 +209,7 @@ int main() {
     }
 
     // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
-    stbi_set_flip_vertically_on_load(true);
+    stbi_set_flip_vertically_on_load(false);
 
     programState = new ProgramState;
     programState->LoadFromFile("resources/program_state.txt");
@@ -234,22 +234,19 @@ int main() {
 
     // build and compile shaders
     // -------------------------
-    Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
-    Shader transparentShader("resources/shaders/3.1.blending.vs", "resources/shaders/3.1.blending.fs");
-    Shader hdrShader("resources/shaders/6.hdr.vs", "resources/shaders/6.hdr.fs");
-
-    unsigned int grassTexture = loadTexture(FileSystem::getPath("resources/textures/1601.m10.i311.n029.S.c10.164511620 Seamless green grass vector pattern.jpg").c_str(), true);
-    Shader skyboxShader("resources/shaders/6.1.skybox.vs", "resources/shaders/6.1.skybox.fs");
-    ourShader.use();
-    ourShader.setInt("texture1", 0);
+    Shader ourShader("resources/shaders/model_lighting.vs", "resources/shaders/model_lighting.fs");
+    Shader corgiShader("resources/shaders/corgi.vs", "resources/shaders/corgi.fs");
+    Shader transparentShader("resources/shaders/blending.vs", "resources/shaders/blending.fs");
+    Shader hdrShader("resources/shaders/hdr.vs", "resources/shaders/hdr.fs");
+    Shader skyboxShader("resources/shaders/skybox.vs", "resources/shaders/skybox.fs");
 
     // load models
     // -----------
     Model shipModel("resources/objects/ship/StMaria.obj");
     shipModel.SetShaderTextureNamePrefix("material.");
 
-//    Model mastiffModel("resources/objects/mastiff/13458_Bullmastiff_v1_L3.obj");
-//    mastiffModel.SetShaderTextureNamePrefix("material.");
+    Model mastiffModel("resources/objects/mastiff/13458_Bullmastiff_v1_L3.obj");
+    mastiffModel.SetShaderTextureNamePrefix("material.");
 
     Model corgiModel("resources/objects/corgi/corgi.obj");
     corgiModel.SetShaderTextureNamePrefix("material.");
@@ -260,16 +257,18 @@ int main() {
     Model cartModel("resources/objects/cart/Cart.obj");
     cartModel.SetShaderTextureNamePrefix("material.");
 
+    // configure light
     PointLight& pointLight = programState->pointLight;
-    pointLight.position = glm::vec3(4.0f, 15.0, 2.0);
-    pointLight.ambient = glm::vec3(1.1, 1.1, 1.1);
-    pointLight.diffuse = glm::vec3(0.2, 0.2, 0.2);
-    pointLight.specular = glm::vec3(0.1, 0.1, 0.1);
+    pointLight.position = glm::vec3(100.0f, 100.0, 2.0);
+    pointLight.ambient = glm::vec3(0.8, 0.8, 0.8);
+    pointLight.diffuse = glm::vec3(1.5f, 1.5f, 1.5f);
+    pointLight.specular = glm::vec3(0.2, 0.2, 0.2);
 
     pointLight.constant = 1.0f;
     pointLight.linear = 0.09f;
     pointLight.quadratic = 0.032f;
 
+    // set vertices
     float planeVertices[] = {
             // positions            // normals         // texcoords
             3000.0f, -0.5f,  3000.0f,  0.0f, 1.0f, 0.0f,  10.0f,  0.0f,
@@ -352,7 +351,7 @@ int main() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glBindVertexArray(0);
 
-// transparent VAO
+    // transparent VAO
     unsigned int transparentVAO, transparentVBO;
     glGenVertexArrays(1, &transparentVAO);
     glGenBuffers(1, &transparentVBO);
@@ -375,17 +374,20 @@ int main() {
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
-
+    // load textures
     unsigned int transparentTexture = loadTexture(FileSystem::getPath("resources/textures/clipart974955.png").c_str(), false);
+    unsigned int grassTexture = loadTexture(FileSystem::getPath("resources/textures/1601.m10.i311.n029.S.c10.164511620 Seamless green grass vector pattern.jpg").c_str(), true);
 
+    // bush positions
     vector<glm::vec3> vegetation
     {
-        glm::vec3(-7.5f, -0.1f, -5.0f),
-        glm::vec3( 3.0f, -0.1f, 0.0f),
-        glm::vec3( 0.0f, -0.1f, 8.5f),
-        glm::vec3(-0.3f, -0.1f, -10.0f),
+        glm::vec3(-7.5f, -0.3f, -5.0f),
+        glm::vec3( 3.0f, -0.3f, 0.0f),
+        glm::vec3( 1.5f, -0.3f, 11.0f),
+        glm::vec3(-0.3f, -0.3f, -10.0f),
     };
 
+    // skybox textures
     vector<std::string> faces
     {
         FileSystem::getPath("resources/textures/skybox/posx.jpg"),
@@ -421,6 +423,10 @@ int main() {
         std::cout << "Framebuffer not complete!" << std::endl;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    // shader configuration
+    ourShader.use();
+    ourShader.setInt("texture1", 0);
+
     skyboxShader.use();
     skyboxShader.setInt("skybox", 0);
 
@@ -448,14 +454,41 @@ int main() {
 
         glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
 
-        // render
-        // ------
-        glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            // render
+            // ------
+            glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // don't forget to enable shader before setting uniforms
+            // don't forget to enable shader before setting uniforms
+            corgiShader.use();
+            corgiShader.setVec3("pointLight.position", glm::vec3(1.0f, 1.0f, 0.01f));
+            corgiShader.setVec3("pointLight.ambient", pointLight.ambient + glm::vec3(4.0f));
+            corgiShader.setVec3("pointLight.diffuse", pointLight.diffuse + glm::vec3(6.0f));
+            corgiShader.setVec3("pointLight.specular", glm::vec3(4.0f));
+            corgiShader.setFloat("pointLight.constant", pointLight.constant);
+            corgiShader.setFloat("pointLight.linear", pointLight.linear);
+            corgiShader.setFloat("pointLight.quadratic", pointLight.quadratic);
+            corgiShader.setVec3("viewPosition", programState->camera.Position);
+            corgiShader.setFloat("material.shininess", 64.0f);
+            corgiShader.setInt("blinn", blinnBool);
+
+            // view/projection transformations
+            glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
+                                                    (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
+            glm::mat4 view = programState->camera.GetViewMatrix();
+            corgiShader.setMat4("projection", projection);
+            corgiShader.setMat4("view", view);
+
+            // render corgi
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model,
+                                   programState->corgiPosition); // translate it down so it's at the center of the scene
+            model = glm::scale(model, glm::vec3(programState->corgiScale));
+            model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+            corgiShader.setMat4("model", model);
+            corgiModel.Draw(corgiShader);
+
             ourShader.use();
-            pointLight.position = glm::vec3(4.0, 4.0f, 4.0);
             ourShader.setVec3("pointLight.position", pointLight.position);
             ourShader.setVec3("pointLight.ambient", pointLight.ambient);
             ourShader.setVec3("pointLight.diffuse", pointLight.diffuse);
@@ -467,15 +500,13 @@ int main() {
             ourShader.setFloat("material.shininess", 32.0f);
             ourShader.setInt("blinn", blinnBool);
 
-            // view/projection transformations
-            glm::mat4 projection = glm::perspective(glm::radians(programState->camera.Zoom),
-                                                    (float) SCR_WIDTH / (float) SCR_HEIGHT, 0.1f, 100.0f);
-            glm::mat4 view = programState->camera.GetViewMatrix();
             ourShader.setMat4("projection", projection);
             ourShader.setMat4("view", view);
 
+
             // render ship
-            glm::mat4 model = glm::mat4(1.0f);
+            ourShader.use();
+            model = glm::mat4(1.0f);
             model = glm::translate(model,
                                    programState->shipPosition); // translate it down so it's at the center of the scene
             model = glm::scale(model, glm::vec3(programState->shipScale));    // it's a bit too big for our scene, so scale it down
@@ -484,29 +515,20 @@ int main() {
             shipModel.Draw(ourShader);
 
             // render mastiff
-    //        model = glm::mat4(1.0f);
-    //        model = glm::translate(model,
-    //                               programState->mastiffPosition); // translate it down so it's at the center of the scene
-    //        model = glm::scale(model, glm::vec3(programState->mastiffScale));    // it's a bit too big for our scene, so scale it down
-    //        model = glm::rotate(model, glm::radians(programState->mastiffAngle), programState->mastiffRotation);
-    //        ourShader.setMat4("model", model);
-//          mastiffModel.Draw(ourShader);
-
-            // render corgi
             model = glm::mat4(1.0f);
             model = glm::translate(model,
-                                   programState->corgiPosition); // translate it down so it's at the center of the scene
-            model = glm::scale(model, glm::vec3(programState->corgiScale));
-            model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
+                                   programState->mastiffPosition); // translate it down so it's at the center of the scene
+            model = glm::scale(model, glm::vec3(programState->mastiffScale));    // it's a bit too big for our scene, so scale it down
+            model = glm::rotate(model, glm::radians(programState->mastiffAngle), programState->mastiffRotation);
             ourShader.setMat4("model", model);
-            corgiModel.Draw(ourShader);
+            mastiffModel.Draw(ourShader);
 
             // render cart
+            ourShader.use();
             model = glm::mat4(1.0f);
             model = glm::translate(model,
                                    programState->cartPosition); // translate it down so it's at the center of the scene
             model = glm::scale(model, glm::vec3(programState->cartScale));
-    //        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
             ourShader.setMat4("model", model);
             cartModel.Draw(ourShader);
 
@@ -529,6 +551,7 @@ int main() {
             {
                 model = glm::mat4(1.0f);
                 model = glm::translate(model, vegetation[i]);
+                model = glm::scale(model, glm::vec3(2.0f));
                 transparentShader.setMat4("model", model);
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
@@ -538,14 +561,13 @@ int main() {
             model = glm::translate(model,
                                    programState->treePosition); // translate it down so it's at the center of the scene
             model = glm::scale(model, glm::vec3(programState->treeScale));
-    //        model = glm::rotate(model, glm::radians(programState->corgiAngle), programState->corgiRotation);
             ourShader.setMat4("model", model);
             treeModel.Draw(transparentShader);
 
-            // draw skybox as last
-            glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+            // draw skybox
+            glDepthFunc(GL_LEQUAL);
             skyboxShader.use();
-            view = glm::mat4(glm::mat3(view)); // remove translation from the view matrix
+            view = glm::mat4(glm::mat3(view));
             skyboxShader.setMat4("view", view);
             skyboxShader.setMat4("projection", projection);
             // skybox cube
@@ -558,8 +580,10 @@ int main() {
 
             if (programState->ImGuiEnabled)
                 DrawImGui(programState);
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+        // hdr implementation
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         hdrShader.use();
         glActiveTexture(GL_TEXTURE0);
@@ -581,8 +605,17 @@ int main() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-    // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
+
+    // free memory
+    glDeleteVertexArrays(1, &planeVAO);
+    glDeleteBuffers(1, &planeVBO);
+
+    glDeleteVertexArrays(1, &transparentVAO);
+    glDeleteBuffers(1, &transparentVBO);
+
+    glDeleteVertexArrays(1, &skyboxVAO);
+    glDeleteBuffers(1, &skyboxVBO);
+
     glfwTerminate();
     return 0;
 }
@@ -718,10 +751,10 @@ void DrawImGui(ProgramState *programState) {
         ImGui::DragFloat3("Ship rotation", (float *) &programState->shipRotation, 0.1);
         ImGui::DragFloat("Ship angle", &programState->shipAngle, 0.05, -360.0, 360.0);
 
-//        ImGui::DragFloat3("Mastiff position", (float*)&programState->mastiffPosition);
-//        ImGui::DragFloat("Mastiff scale", &programState->mastiffScale, 0.05, 0.1, 4.0);
-//        ImGui::DragFloat3("Mastiff rotation", (float *) &programState->mastiffRotation, 0.1);
-//        ImGui::DragFloat("Mastiff angle", &programState->mastiffAngle, 0.05, -180.0, 180.0);
+        ImGui::DragFloat3("Mastiff position", (float*)&programState->mastiffPosition);
+        ImGui::DragFloat("Mastiff scale", &programState->mastiffScale, 0.05, 0.1, 4.0);
+        ImGui::DragFloat3("Mastiff rotation", (float *) &programState->mastiffRotation, 0.1);
+        ImGui::DragFloat("Mastiff angle", &programState->mastiffAngle, 0.05, -180.0, 180.0);
 
         ImGui::DragFloat3("Corgi position", (float*)&programState->corgiPosition);
         ImGui::DragFloat("Corgi scale", &programState->corgiScale, 0.05, 0.1, 4.0);
