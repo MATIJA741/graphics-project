@@ -561,7 +561,7 @@ int main() {
             model = glm::translate(model,
                                    programState->treePosition); // translate it down so it's at the center of the scene
             model = glm::scale(model, glm::vec3(programState->treeScale));
-            ourShader.setMat4("model", model);
+            transparentShader.setMat4("model", model);
             treeModel.Draw(transparentShader);
 
             // draw skybox
@@ -764,8 +764,8 @@ void DrawImGui(ProgramState *programState) {
         ImGui::DragFloat3("Tree position", (float*)&programState->treePosition);
         ImGui::DragFloat("Tree scale", &programState->treeScale, 0.05, 0.1, 4.0);
 
-        ImGui::DragFloat3("Cart position", (float*)&programState->cartPosition);
-        ImGui::DragFloat("Cart scale", &programState->cartScale, 0.05, -0.5, 4.0);
+//        ImGui::DragFloat3("Cart position", (float*)&programState->cartPosition);
+//        ImGui::DragFloat("Cart scale", &programState->cartScale, 0.05, -0.5, 4.0);
 
         ImGui::DragFloat("pointLight.constant", &programState->pointLight.constant, 0.05, 0.0, 1.0);
         ImGui::DragFloat("pointLight.linear", &programState->pointLight.linear, 0.05, 0.0, 1.0);
@@ -835,4 +835,3 @@ unsigned int loadCubemap(vector<std::string> faces)
 
     return textureID;
 }
-
