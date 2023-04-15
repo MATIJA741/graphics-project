@@ -8,8 +8,9 @@
 # Kontrole
 **WASD** - pomeranje kamere  
 **STRELICE** - pomeranje ugla kamere  
+**T** i **G** - pomeranje kamere gore/dole  
 **B** - menjanje tipa osvetljenja  
 **SPACE** - ukljucivanje/iskljucivanje HDR efekta  
 **Q** i **E** - smanjivanje/povecavanje ekspozicije  
 **M** - ukljucivanje/iskljucivanje mogucnosti pomeranja kamere misem  
-**F1** - ukljucivanje/iskljucivanje ImGui korisnickog interfejsa  
+**F1** - ukljucivanje/iskljucivanje ImGui korisnickog interfejsa
